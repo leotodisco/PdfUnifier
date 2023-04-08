@@ -4,12 +4,16 @@ import android.content.Intent
 import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.os.Environment
 import android.widget.Button
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.multipdf.PDFMergerUtility
-import java.io.File
+
+import java.io.*
+
 
 /**
  * @author Leopoldo Todisco.
@@ -20,6 +24,9 @@ class MainActivity : AppCompatActivity() {
     lateinit var buttonOne: Button
     lateinit var buttonTwo: Button
     lateinit var path: String
+    private var file1: InputStream? = null
+    private var file2: InputStream? = null
+
 
     /**
      * Siccome startForActivityResult è deprecato si usa registerForActivityResult.
@@ -28,8 +35,16 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.GetContent()) { result ->
             if (result != null) {
                 val selectedFileUri: Uri = result
-                path = selectedFileUri.toString()
                 Toast.makeText(this, selectedFileUri.toString(), Toast.LENGTH_LONG).show()
+                path = selectedFileUri.toString()
+                val contentResolver = contentResolver
+                if (file1 == null) {
+                    file1 = contentResolver.openInputStream(selectedFileUri)
+                }  else {
+                    file2 = contentResolver.openInputStream(selectedFileUri)
+
+                    mergePdf(file1, file2)
+                }
             }
         }
 
@@ -50,8 +65,9 @@ class MainActivity : AppCompatActivity() {
      * Usa intent per ottenere il file.
      */
     private fun onBrowserButtonClick() {
-        val i = Intent(Intent.ACTION_GET_CONTENT)
+        val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
         i.type = "*/*"
+        i.flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
         pickFileActivityResult.launch(i.type)
     }
 
@@ -59,12 +75,22 @@ class MainActivity : AppCompatActivity() {
     /**
      * Funzione che fa il merge dei due pdf.
      */
-    fun mergePdf(pdf1: File, pdf2: File, output: File) {
+    fun mergePdf(pdf1: InputStream?, pdf2: InputStream?) {
         PDFBoxResourceLoader.init(applicationContext)
+
+        println("ciao sono nella funzione merge\n")
         val merger = PDFMergerUtility()
         merger.addSource(pdf1)
         merger.addSource(pdf2)
-        merger.destinationFileName = output.path
+
+        val folder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+        val destinationFile = File(folder, "risultato.pdf")
+        if (!destinationFile.exists()) {
+            destinationFile.createNewFile()
+            Toast.makeText(this, "file creato con successo", Toast.LENGTH_LONG).show()
+        }
+
+        merger.destinationFileName = destinationFile.absolutePath
         merger.mergeDocuments(null)
     }
 
